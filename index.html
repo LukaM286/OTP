@@ -344,7 +344,11 @@ function parseOTPLine(line) {
   if (beforeDate) {
     merchant = beforeDate.replace(/^(Plačilo|Nakazilo|Dvig|Payment|Transfer)[:\s]*/i,'').replace(/\s+/g,' ').trim() || merchant;
   }
-  const isIncome = rawAmt > 0 && (line.includes('+') || /nakazilo|plač[ae]/i.test(merchant));
+  // Income = explicitly marked with + sign, OR keyword nakazilo/plača/dobropis in the raw line
+  // Plačilo = payment (expense), never income
+  const hasPlus = amtM[1].startsWith('+');
+  const incomeKeyword = /\b(nakazilo|plača|prejemek|dobropis|vračilo|refund)\b/i.test(line);
+  const isIncome = hasPlus || incomeKeyword;
   const isAtm = /bankomat|atm|dvig/i.test(line);
   const amount = isIncome ? Math.abs(rawAmt) : -Math.abs(rawAmt);
   const type = isIncome ? 'credit' : 'debit';
@@ -366,19 +370,39 @@ function catOf(merchant, isIncome, isAtm) {
 
 function parseSMS() {
   const raw = document.getElementById('sms-input').value;
-  if (!raw.trim()) { toast('Ni besedila za uvoz'); return; }
-  let added = 0;
+  const msgEl = document.getElementById('import-msg');
+  if (!raw.trim()) {
+    msgEl.style.color = 'var(--red)';
+    msgEl.textContent = '⚠️ Ni besedila za uvoz — prilepite SMS sporočila zgoraj.';
+    return;
+  }
+  let added = 0, skipped = 0, failed = 0;
   raw.split('\n').forEach(line => {
+    if (!line.trim()) return;
     const tx = parseOTPLine(line);
-    if (tx && !txs.some(t=>t.id===tx.id)) { txs.push(tx); added++; }
+    if (!tx) { failed++; return; }
+    if (txs.some(t=>t.id===tx.id)) { skipped++; return; }
+    txs.push(tx); added++;
   });
   txs.sort((a,b) => new Date(b.date)-new Date(a.date));
   saveTx();
   refreshSelected();
   refreshAll();
-  document.getElementById('import-msg').textContent = added ? `✓ Uvoženih ${added} transakcij` : 'Podvojene ali ni najdenih transakcij.';
   updateStats();
-  toast(`Uvoženih ${added} transakcij`);
+  if (added > 0) {
+    msgEl.style.color = 'var(--green)';
+    msgEl.textContent = `✅ Uspešno uvoženih ${added} transakcij${skipped > 0 ? ` (${skipped} podvojenih preskočenih)` : ''}.`;
+    toast(`✅ Uvoženih ${added} transakcij`);
+    document.getElementById('sms-input').value = '';
+  } else if (skipped > 0) {
+    msgEl.style.color = 'var(--amber)';
+    msgEl.textContent = `⚠️ Vse transakcije so že uvožene (${skipped} podvojenih).`;
+    toast('⚠️ Vse že uvoženo');
+  } else {
+    msgEl.style.color = 'var(--red)';
+    msgEl.textContent = '❌ Ni prepoznanih OTP transakcij. Preverite format sporočil.';
+    toast('❌ Ni prepoznanih transakcij');
+  }
 }
 
 function loadSample() {
