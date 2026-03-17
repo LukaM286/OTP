@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="OTP Budget">
+<meta name="theme-color" content="#1A7F64">
+<title>OTP Budget</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --green: #1A7F64;
+  --green-dark: #15705A;
+  --green-light: #E6F5F0;
+  --red: #C0392B;
+  --red-light: #FDECEA;
+  --blue: #185FA5;
+  --blue-light: #E6EFF8;
+  --amber: #D97706;
+  --bg: #F4F6F5;
+  --surface: #FFFFFF;
+  --border: rgba(0,0,0,0.10);
+  --border-strong: rgba(0,0,0,0.18);
+  --text: #111;
+  --text-2: #555;
+  --text-3: #888;
+  --radius: 14px;
+  --radius-sm: 8px;
+  --tab-h: 60px;
+  --nav-h: 52px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0F1210;
+    --surface: #1C211F;
+    --border: rgba(255,255,255,0.09);
+    --border-strong: rgba(255,255,255,0.18);
+    --text: #F0F0EE;
+    --text-2: #A0A09A;
+    --text-3: #666;
+    --green-light: #0D2E22;
+    --red-light: #2E1210;
+    --blue-light: #0D1E32;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:16px}
+
+/* Layout */
+#app{display:flex;flex-direction:column;height:100%;height:100dvh}
+.nav{height:var(--nav-h);background:var(--surface);border-bottom:0.5px solid var(--border);display:flex;align-items:center;padding:0 16px;flex-shrink:0;position:relative;z-index:10}
+.nav-logo{font-size:17px;font-weight:700;letter-spacing:-.4px}
+.nav-logo span{color:var(--green)}
+.nav-month{margin-left:auto;font-size:13px;color:var(--text-2);font-weight:500}
+.scroll-body{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:calc(var(--tab-h) + 12px)}
+.tab-bar{height:var(--tab-h);background:var(--surface);border-top:0.5px solid var(--border);display:flex;align-items:flex-start;padding-top:6px;flex-shrink:0;position:relative;z-index:10}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px 2px;border:none;background:none;color:var(--text-3);transition:color .15s}
+.tab.active{color:var(--green)}
+.tab-icon{font-size:22px;line-height:1}
+.tab-label{font-size:10px;font-weight:500;letter-spacing:.2px}
+
+/* Pages */
+.page{display:none;padding:16px 14px 8px}
+.page.active{display:block}
+.page-title{font-size:20px;font-weight:700;letter-spacing:-.4px;margin-bottom:14px}
+
+/* Cards */
+.card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+.card-title{font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
+
+/* Metric grid */
+.metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.metric{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px}
+.metric-label{font-size:11px;color:var(--text-3);font-weight:500;margin-bottom:3px;text-transform:uppercase;letter-spacing:.4px}
+.metric-value{font-size:24px;font-weight:700;letter-spacing:-.6px;line-height:1.1}
+.metric-value.green{color:var(--green)}
+.metric-value.red{color:var(--red)}
+.metric-value.blue{color:var(--blue)}
+.metric-value.amber{color:var(--amber)}
+
+/* Month scroller */
+.month-scroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;scrollbar-width:none}
+.month-scroll::-webkit-scrollbar{display:none}
+.month-chip{flex-shrink:0;font-size:12px;font-weight:600;padding:5px 13px;border-radius:20px;border:1px solid var(--border-strong);background:none;cursor:pointer;color:var(--text-2);white-space:nowrap;transition:background .15s,color .15s,border-color .15s}
+.month-chip.active{background:var(--green);color:#fff;border-color:var(--green)}
+
+/* Transaction list */
+.tx-list{display:flex;flex-direction:column}
+.tx-item{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:0.5px solid var(--border)}
+.tx-item:last-child{border-bottom:none}
+.tx-icon{width:40px;height:40px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.tx-info{flex:1;min-width:0}
+.tx-merchant{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.tx-meta{font-size:12px;color:var(--text-3);margin-top:2px}
+.tx-right{text-align:right;flex-shrink:0}
+.tx-amount{font-size:15px;font-weight:700;letter-spacing:-.3px}
+.tx-amount.debit{color:var(--red)}
+.tx-amount.credit{color:var(--green)}
+.tx-badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;display:inline-block;margin-top:3px}
+.cat-food{background:#FEF3CD;color:#7A4F00}
+.cat-transport{background:#D5EAF7;color:#0C3A6A}
+.cat-shopping{background:#EAD5F7;color:#3C1489}
+.cat-health{background:#D5F0E4;color:#084030}
+.cat-entertainment{background:#FCE8E8;color:#6A1010}
+.cat-utilities{background:#E8E8E8;color:#333}
+.cat-income{background:#D5F0E4;color:#084030}
+.cat-other{background:#F1EFE8;color:#555}
+
+/* Budget bars */
+.budget-item{margin-bottom:14px}
+.budget-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.budget-name{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px}
+.budget-nums{font-size:12px;color:var(--text-3)}
+.bar-track{height:7px;background:var(--bg);border-radius:4px;overflow:hidden;border:0.5px solid var(--border)}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s ease}
+.bar-ok{background:var(--green)}
+.bar-warn{background:var(--amber)}
+.bar-over{background:var(--red)}
+
+/* Chart */
+.chart-wrap{position:relative;width:100%;height:200px}
+
+/* SMS */
+.sms-area{width:100%;min-height:130px;padding:12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:monospace;font-size:12px;resize:vertical;outline:none;line-height:1.6}
+.sms-area:focus{border-color:var(--green)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 20px;border-radius:var(--radius-sm);font-size:14px;font-weight:600;cursor:pointer;border:1px solid var(--border-strong);background:none;color:var(--text);transition:background .15s;width:100%;margin-top:8px}
+.btn-primary{background:var(--green);color:#fff;border-color:var(--green)}
+.btn-primary:active{background:var(--green-dark)}
+.btn-secondary{background:var(--bg)}
+.btn-secondary:active{opacity:.7}
+.btn-danger{background:var(--red-light);color:var(--red);border-color:var(--red)}
+
+/* Budget edit */
+.budget-edit-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border)}
+.budget-edit-row:last-child{border-bottom:none}
+.budget-edit-label{flex:1;font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px}
+.budget-edit-input{width:90px;padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border-strong);background:var(--bg);color:var(--text);font-size:14px;font-weight:600;text-align:right}
+
+/* Search */
+.search-wrap{position:relative;margin-bottom:10px}
+.search-input{width:100%;padding:11px 14px 11px 38px;border-radius:var(--radius-sm);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-size:14px;outline:none}
+.search-input:focus{border-color:var(--green)}
+.search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;pointer-events:none}
+.filter-select{width:100%;padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-size:14px;outline:none;margin-bottom:10px}
+
+/* Empty */
+.empty{text-align:center;padding:40px 16px;color:var(--text-3)}
+.empty-icon{font-size:42px;margin-bottom:10px}
+.empty-title{font-size:15px;font-weight:600;color:var(--text-2);margin-bottom:6px}
+.empty-sub{font-size:13px;line-height:1.6}
+
+/* Toast */
+#toast{position:fixed;bottom:calc(var(--tab-h) + 16px);left:50%;transform:translateX(-50%) translateY(20px);background:rgba(20,20,20,0.92);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:500;transition:all .25s;z-index:999;pointer-events:none;opacity:0;white-space:nowrap;backdrop-filter:blur(8px)}
+#toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+/* Sample box */
+.sample-box{background:var(--bg);border:1px dashed var(--border-strong);border-radius:var(--radius-sm);padding:10px 12px;font-family:monospace;font-size:11px;color:var(--text-2);line-height:1.8;margin:8px 0 12px;overflow-x:auto}
+
+/* Section header */
+.section-header{font-size:13px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px}
+
+/* Divider */
+.divider{height:0.5px;background:var(--border);margin:14px 0}
+
+/* Install banner */
+#install-banner{display:none;background:var(--green-light);border:1px solid var(--green);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:14px;font-size:13px;color:var(--green);align-items:center;gap:10px}
+#install-banner.show{display:flex}
+#install-banner strong{font-weight:700}
+
+/* Summary row */
+.summary-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:14px}
+.summary-row:last-child{border-bottom:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="nav">
+    <div class="nav-logo"><span>OTP</span> Budget</div>
+    <div class="nav-month" id="nav-month-label"></div>
+  </div>
+
+  <div class="scroll-body" id="scroll-body">
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page active">
+      <div id="install-banner">
+        <span>📲</span>
+        <div><strong>Dodaj na domači zaslon</strong><br>Tap Share → "Add to Home Screen"</div>
+      </div>
+      <div class="month-scroll" id="dash-months"></div>
+      <div class="metric-grid" id="dash-metrics"></div>
+      <div class="card">
+        <div class="card-title">Poraba po kategorijah</div>
+        <div class="chart-wrap"><canvas id="catChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Mesečni trend</div>
+        <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Zadnje transakcije</div>
+        <div class="tx-list" id="dash-tx-list"></div>
+      </div>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <div id="page-transactions" class="page">
+      <div class="page-title">Transakcije</div>
+      <div class="month-scroll" id="tx-months"></div>
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="tx-search" placeholder="Išči po imenu..." oninput="renderTxList()">
+      </div>
+      <select class="filter-select" id="tx-cat" onchange="renderTxList()">
+        <option value="">Vse kategorije</option>
+      </select>
+      <div class="card" style="padding:14px 14px 6px">
+        <div class="tx-list" id="tx-list"></div>
+      </div>
+    </div>
+
+    <!-- BUDGETS -->
+    <div id="page-budgets" class="page">
+      <div class="page-title">Proračun</div>
+      <div class="month-scroll" id="budget-months"></div>
+      <div class="card">
+        <div class="card-title">Status proračuna</div>
+        <div id="budget-bars"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Nastavi mesečne limite (€)</div>
+        <div id="budget-edit"></div>
+        <button class="btn btn-primary" onclick="saveBudgets()" style="margin-top:14px">💾 Shrani proračun</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Porabljeno vs proračun</div>
+        <div class="chart-wrap" style="height:240px"><canvas id="budgetChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- IMPORT -->
+    <div id="page-import" class="page">
+      <div class="page-title">Uvoz SMS</div>
+
+      <div class="card">
+        <div class="card-title">Kako deluje</div>
+        <p style="font-size:13px;color:var(--text-2);line-height:1.7">
+          Prilepite SMS sporočila OTP banke spodaj. App samodejno razpozna transakcije, datum, znesek in trgovca.
+        </p>
+        <p style="font-size:12px;font-weight:600;color:var(--text-3);margin:10px 0 4px">Primer sporočila:</p>
+        <div class="sample-box">OTP banka: Kartica *1234, Plačilo: MERCATOR D.D., 25.03.2025, 42.50 EUR, Prosti limit: 850.00 EUR</div>
+        <p style="font-size:12px;color:var(--text-3);line-height:1.6">
+          💡 <strong>Android tip:</strong> Uporabite <em>SMS Backup & Restore</em> ali <em>MacroDroid</em> za avtomatsko posredovanje OTP SMS sporočil.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Prilepite SMS sporočila</div>
+        <textarea class="sms-area" id="sms-input" placeholder="OTP banka: Kartica *1234, Plačilo: MERCATOR D.D., 25.03.2025, 42.50 EUR ...&#10;OTP banka: Kartica *1234, Plačilo: PETROL D.D., 24.03.2025, 65.30 EUR ..."></textarea>
+        <button class="btn btn-primary" onclick="parseSMS()">📥 Uvozi transakcije</button>
+        <button class="btn btn-secondary" onclick="loadSample()">📋 Naloži vzorec</button>
+        <div id="import-msg" style="font-size:13px;color:var(--green);font-weight:600;margin-top:8px;min-height:18px"></div>
+      </div>
+
+      <div class="metric-grid">
+        <div class="metric"><div class="metric-label">Skupaj</div><div class="metric-value blue" id="s-total">0</div></div>
+        <div class="metric"><div class="metric-label">Mesecev</div><div class="metric-value amber" id="s-months">0</div></div>
+        <div class="metric"><div class="metric-label">Prihodki</div><div class="metric-value green" id="s-income">0</div></div>
+        <div class="metric"><div class="metric-label">Odhodki</div><div class="metric-value red" id="s-expense">0</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Nevarno območje</div>
+        <button class="btn btn-danger" onclick="clearAll()">🗑️ Izbriši vse podatke</button>
+      </div>
+    </div>
+
+  </div><!-- /scroll-body -->
+
+  <div class="tab-bar">
+    <button class="tab active" id="tab-dashboard" onclick="showPage('dashboard',this)">
+      <span class="tab-icon">📊</span><span class="tab-label">Pregled</span>
+    </button>
+    <button class="tab" id="tab-transactions" onclick="showPage('transactions',this)">
+      <span class="tab-icon">📋</span><span class="tab-label">Transakcije</span>
+    </button>
+    <button class="tab" id="tab-budgets" onclick="showPage('budgets',this)">
+      <span class="tab-icon">🎯</span><span class="tab-label">Proračun</span>
+    </button>
+    <button class="tab" id="tab-import" onclick="showPage('import',this)">
+      <span class="tab-icon">📩</span><span class="tab-label">Uvoz SMS</span>
+    </button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────
+const CATS = {
+  food:          { label:'Hrana',         icon:'🛒', kw:['MERCATOR','SPAR','HOFER','LIDL','TRGOPROMET','RESTAVRACIJA','GOSTILNA','MCDONALD','BURGER','PIZZA','KFC','SUBWAY','KAUFLAND','GROCERY','SUPERMARKET'] },
+  transport:     { label:'Prevoz',         icon:'🚗', kw:['PETROL','OMV','MOL','SHELL','BP ','AVTOCESTA','DARS','PARKIR','TAXI','UBER','BOLT','BUS','ŽELEZNICA','PARKING','FUEL'] },
+  shopping:      { label:'Nakupi',         icon:'🛍️', kw:['AMAZON','ALIEXPRESS','ZARA','H&M','DECATHLON','IKEA','MERKUR','BAUHAUS','LEROY','INTERSPORT','HERVIS','ONLINE','FASHION'] },
+  health:        { label:'Zdravje',        icon:'💊', kw:['LEKARNA','PHARMACY','DROGERIJA','BIPA','DM ','ZDRAVSTVENI','HOSPITAL','KLINIKA','DENTAL','OPTIKA'] },
+  entertainment: { label:'Zabava',         icon:'🎬', kw:['NETFLIX','SPOTIFY','GAMING','CINEMA','KINO','BAR','PUB','KAVARNA','CAFE','HOTEL','AIRBNB','BOOKING','THEATER','CONCERT'] },
+  utilities:     { label:'Računi',         icon:'⚡', kw:['ELEKTRO','KOMUNALA','TELEKOM','MOBITEL','A1 ','VODAFONE','TELEMACH','T-2 ','INTERNET','ZAVAROVALNICA','ENERGY'] },
+  income:        { label:'Prihodki',       icon:'💰', kw:[] },
+  other:         { label:'Drugo',          icon:'📋', kw:[] }
+};
+const DEF_BUDGETS = { food:300, transport:150, shopping:200, health:80, entertainment:100, utilities:120, other:100 };
+
+// ── State ─────────────────────────────────────────────────────────────────
+let txs = [], budgets = {}, selectedMonth = '';
+let catChart, trendChart, budgetChart;
+
+// ── Storage ───────────────────────────────────────────────────────────────
+function load() {
+  try { const t = localStorage.getItem('otp_tx2'); if(t) txs = JSON.parse(t); } catch(e){}
+  try { const b = localStorage.getItem('otp_bud2'); budgets = b ? JSON.parse(b) : {...DEF_BUDGETS}; } catch(e){ budgets={...DEF_BUDGETS}; }
+}
+function saveTx() { try { localStorage.setItem('otp_tx2', JSON.stringify(txs)); } catch(e){} }
+function saveBudgetStore() { try { localStorage.setItem('otp_bud2', JSON.stringify(budgets)); } catch(e){} }
+
+// ── SMS Parser ────────────────────────────────────────────────────────────
+function parseOTPLine(line) {
+  line = line.trim();
+  if (!line.toLowerCase().includes('otp')) return null;
+  const amtM = line.match(/([+-]?\d{1,6}[.,]\d{2})\s*EUR/i);
+  if (!amtM) return null;
+  const rawAmt = parseFloat(amtM[1].replace(',','.'));
+  const dateM = line.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+  if (!dateM) return null;
+  const date = `${dateM[3]}-${dateM[2]}-${dateM[1]}`;
+  const cardM = line.match(/\*(\d{4})/);
+  const card = cardM ? cardM[1] : '????';
+  const limitM = line.match(/Prosti limit[:\s]+([\d.,]+)\s*EUR/i);
+  const limit = limitM ? parseFloat(limitM[1].replace(',','.')) : null;
+  let merchant = 'Transakcija';
+  const afterCard = line.replace(/.*Kartica\s*\*\d{4}[,\s]*/i,'');
+  const beforeDate = afterCard.replace(/[,\s]*\d{2}\.\d{2}\.\d{4}.*/,'').trim();
+  if (beforeDate) {
+    merchant = beforeDate.replace(/^(Plačilo|Nakazilo|Dvig|Payment|Transfer)[:\s]*/i,'').replace(/\s+/g,' ').trim() || merchant;
+  }
+  const isIncome = rawAmt > 0 && (line.includes('+') || /nakazilo|plač[ae]/i.test(merchant));
+  const isAtm = /bankomat|atm|dvig/i.test(line);
+  const amount = isIncome ? Math.abs(rawAmt) : -Math.abs(rawAmt);
+  const type = isIncome ? 'credit' : 'debit';
+  const cat = catOf(merchant, isIncome, isAtm);
+  const id = `${date}-${Math.abs(rawAmt)}-${merchant.replace(/\s/g,'').slice(0,10)}`;
+  return { id, date, merchant, amount, type, cat, card, limit };
+}
+
+function catOf(merchant, isIncome, isAtm) {
+  if (isIncome) return 'income';
+  if (isAtm) return 'other';
+  const m = merchant.toUpperCase();
+  for (const [k, cfg] of Object.entries(CATS)) {
+    if (k==='income'||k==='other') continue;
+    if (cfg.kw.some(w => m.includes(w))) return k;
+  }
+  return 'other';
+}
+
+function parseSMS() {
+  const raw = document.getElementById('sms-input').value;
+  if (!raw.trim()) { toast('Ni besedila za uvoz'); return; }
+  let added = 0;
+  raw.split('\n').forEach(line => {
+    const tx = parseOTPLine(line);
+    if (tx && !txs.some(t=>t.id===tx.id)) { txs.push(tx); added++; }
+  });
+  txs.sort((a,b) => new Date(b.date)-new Date(a.date));
+  saveTx();
+  refreshSelected();
+  refreshAll();
+  document.getElementById('import-msg').textContent = added ? `✓ Uvoženih ${added} transakcij` : 'Podvojene ali ni najdenih transakcij.';
+  updateStats();
+  toast(`Uvoženih ${added} transakcij`);
+}
+
+function loadSample() {
+  document.getElementById('sms-input').value = `OTP banka: Kartica *1234, Nakazilo: PLAČA PODJETJE D.O.O., 01.03.2025, +1800.00 EUR, Prosti limit: 2800.00 EUR
+OTP banka: Kartica *1234, Plačilo: MERCATOR D.D., 03.03.2025, 42.50 EUR, Prosti limit: 2757.50 EUR
+OTP banka: Kartica *1234, Plačilo: PETROL D.D., 05.03.2025, 65.30 EUR, Prosti limit: 2692.20 EUR
+OTP banka: Kartica *1234, Plačilo: NETFLIX.COM, 07.03.2025, 15.99 EUR, Prosti limit: 2676.21 EUR
+OTP banka: Kartica *1234, Plačilo: MCDONALD'S LJUBLJANA, 08.03.2025, 8.90 EUR, Prosti limit: 2667.31 EUR
+OTP banka: Kartica *1234, Dvig na bankomatu, 10.03.2025, 100.00 EUR, Prosti limit: 2567.31 EUR
+OTP banka: Kartica *1234, Plačilo: LEKARNA BREZOVICA, 11.03.2025, 24.80 EUR, Prosti limit: 2542.51 EUR
+OTP banka: Kartica *1234, Plačilo: SPAR SLOVENIJA, 12.03.2025, 55.20 EUR, Prosti limit: 2487.31 EUR
+OTP banka: Kartica *1234, Plačilo: HOFER, 14.03.2025, 28.40 EUR, Prosti limit: 2458.91 EUR
+OTP banka: Kartica *1234, Plačilo: ELEKTRO ENERGIJA, 15.03.2025, 48.00 EUR, Prosti limit: 2410.91 EUR
+OTP banka: Kartica *1234, Plačilo: AMAZON.DE, 16.03.2025, 89.99 EUR, Prosti limit: 2320.92 EUR
+OTP banka: Kartica *1234, Plačilo: KAVARNA STARI TRST, 17.03.2025, 6.40 EUR, Prosti limit: 2314.52 EUR
+OTP banka: Kartica *1234, Plačilo: A1 SLOVENIJA, 18.03.2025, 32.00 EUR, Prosti limit: 2282.52 EUR
+OTP banka: Kartica *1234, Plačilo: DECATHLON, 19.03.2025, 74.50 EUR, Prosti limit: 2208.02 EUR
+OTP banka: Kartica *1234, Plačilo: LIDL, 21.03.2025, 33.10 EUR, Prosti limit: 2174.92 EUR
+OTP banka: Kartica *1234, Plačilo: PETROL D.D., 22.03.2025, 58.00 EUR, Prosti limit: 2116.92 EUR
+OTP banka: Kartica *1234, Plačilo: MERCATOR D.D., 24.03.2025, 38.90 EUR, Prosti limit: 2078.02 EUR
+OTP banka: Kartica *1234, Plačilo: SPOTIFY, 25.03.2025, 9.99 EUR, Prosti limit: 2068.03 EUR
+OTP banka: Kartica *1234, Nakazilo: PLAČA PODJETJE D.O.O., 01.02.2025, +1800.00 EUR, Prosti limit: 2200.00 EUR
+OTP banka: Kartica *1234, Plačilo: MERCATOR D.D., 02.02.2025, 48.70 EUR, Prosti limit: 2151.30 EUR
+OTP banka: Kartica *1234, Plačilo: OMV, 04.02.2025, 61.50 EUR, Prosti limit: 2089.80 EUR
+OTP banka: Kartica *1234, Plačilo: HOFER, 06.02.2025, 29.30 EUR, Prosti limit: 2060.50 EUR
+OTP banka: Kartica *1234, Plačilo: ZARA, 08.02.2025, 79.00 EUR, Prosti limit: 1981.50 EUR
+OTP banka: Kartica *1234, Plačilo: NETFLIX.COM, 10.02.2025, 15.99 EUR, Prosti limit: 1965.51 EUR
+OTP banka: Kartica *1234, Plačilo: ELEKTRO ENERGIJA, 14.02.2025, 52.00 EUR, Prosti limit: 1913.51 EUR
+OTP banka: Kartica *1234, Plačilo: SPAR SLOVENIJA, 18.02.2025, 61.40 EUR, Prosti limit: 1852.11 EUR
+OTP banka: Kartica *1234, Plačilo: A1 SLOVENIJA, 20.02.2025, 32.00 EUR, Prosti limit: 1820.11 EUR
+OTP banka: Kartica *1234, Plačilo: LIDL, 24.02.2025, 27.80 EUR, Prosti limit: 1792.31 EUR`;
+}
+
+function clearAll() {
+  if (!confirm('Res želiš izbrisati vse podatke?')) return;
+  txs = []; budgets = {...DEF_BUDGETS};
+  saveTx(); saveBudgetStore();
+  selectedMonth = '';
+  refreshAll();
+  toast('Vsi podatki izbrisani');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function getMonths() { return [...new Set(txs.map(t=>t.date.slice(0,7)))].sort().reverse(); }
+function monthLabel(m) { const [y,mo]=m.split('-'); return new Date(y,mo-1).toLocaleDateString('sl-SI',{month:'short',year:'numeric'}); }
+function txForMonth(m) { return txs.filter(t=>t.date.startsWith(m)); }
+
+function refreshSelected() {
+  const months = getMonths();
+  if (!months.length) { selectedMonth=''; return; }
+  if (!selectedMonth || !months.includes(selectedMonth)) selectedMonth = months[0];
+}
+
+function buildMonths(containerId, onSelect) {
+  const months = getMonths();
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  months.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'month-chip' + (m===selectedMonth?' active':'');
+    btn.textContent = monthLabel(m);
+    btn.onclick = () => { selectedMonth=m; onSelect(); };
+    el.appendChild(btn);
+  });
+}
+
+function txRow(tx) {
+  const cat = CATS[tx.cat]||CATS.other;
+  const sign = tx.type==='credit' ? '+' : '-';
+  const amt = Math.abs(tx.amount).toFixed(2);
+  const d = new Date(tx.date).toLocaleDateString('sl-SI',{day:'2-digit',month:'2-digit'});
+  return `<div class="tx-item">
+    <div class="tx-icon">${cat.icon}</div>
+    <div class="tx-info">
+      <div class="tx-merchant">${tx.merchant}</div>
+      <div class="tx-meta">${d} · *${tx.card}</div>
+    </div>
+    <div class="tx-right">
+      <div class="tx-amount ${tx.type}">${sign}€${amt}</div>
+      <div class="tx-badge cat-${tx.cat}">${cat.label}</div>
+    </div>
+  </div>`;
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────
+function renderDashboard() {
+  buildMonths('dash-months', renderDashboard);
+  const list = txForMonth(selectedMonth);
+  document.getElementById('nav-month-label').textContent = selectedMonth ? monthLabel(selectedMonth) : '';
+  const income  = list.filter(t=>t.type==='credit').reduce((s,t)=>s+t.amount,0);
+  const expense = list.filter(t=>t.type==='debit').reduce((s,t)=>s+Math.abs(t.amount),0);
+  const save    = income - expense;
+  document.getElementById('dash-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Prihodki</div><div class="metric-value green">€${income.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Odhodki</div><div class="metric-value red">€${expense.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Prihranek</div><div class="metric-value ${save>=0?'green':'red'}">€${save.toFixed(0)}</div></div>
+    <div class="metric"><div class="metric-label">Transakcij</div><div class="metric-value blue">${list.length}</div></div>`;
+
+  const recent = list.slice(0,8);
+  document.getElementById('dash-tx-list').innerHTML = recent.length
+    ? recent.map(txRow).join('')
+    : `<div class="empty"><div class="empty-icon">💳</div><div class="empty-title">Ni transakcij</div><div class="empty-sub">Uvozi SMS sporočila OTP banke v zavihku "Uvoz SMS"</div></div>`;
+
+  renderCatChart(list);
+  renderTrendChart();
+}
+
+function renderCatChart(list) {
+  const exp = list.filter(t=>t.type==='debit');
+  const map = {};
+  exp.forEach(t=>{ map[t.cat]=(map[t.cat]||0)+Math.abs(t.amount); });
+  const labels=[], data=[], colors=[];
+  const pal=['#1A7F64','#185FA5','#8B5CF6','#D97706','#DC2626','#6B7280','#059669'];
+  let ci=0;
+  for(const [cat,amt] of Object.entries(map)){ labels.push(CATS[cat]?.label||cat); data.push(+amt.toFixed(2)); colors.push(pal[ci++%pal.length]); }
+  const ctx=document.getElementById('catChart').getContext('2d');
+  if(catChart) catChart.destroy();
+  if(!data.length){ctx.clearRect(0,0,400,200);return;}
+  catChart=new Chart(ctx,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:0,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:8,boxWidth:10}}}}});
+}
+
+function renderTrendChart() {
+  const months=getMonths().slice(0,6).reverse();
+  const inc=[],exp=[];
+  months.forEach(m=>{const t=txForMonth(m);inc.push(+(t.filter(x=>x.type==='credit').reduce((s,x)=>s+x.amount,0).toFixed(0)));exp.push(+(t.filter(x=>x.type==='debit').reduce((s,x)=>s+Math.abs(x.amount),0).toFixed(0)));});
+  const labels=months.map(m=>{const[y,mo]=m.split('-');return new Date(y,mo-1).toLocaleDateString('sl-SI',{month:'short'});});
+  const ctx=document.getElementById('trendChart').getContext('2d');
+  if(trendChart) trendChart.destroy();
+  trendChart=new Chart(ctx,{type:'bar',data:{labels,datasets:[
+    {label:'Prihodki',data:inc,backgroundColor:'#1A7F6480',borderColor:'#1A7F64',borderWidth:1,borderRadius:4},
+    {label:'Odhodki',data:exp,backgroundColor:'#C0392B60',borderColor:'#C0392B',borderWidth:1,borderRadius:4}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:11},boxWidth:10}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'€'+v}}}}});
+}
+
+// ── Transactions ──────────────────────────────────────────────────────────
+function setupTxPage() {
+  buildMonths('tx-months',()=>{ buildMonths('tx-months',()=>renderTxList()); renderTxList(); });
+  // Populate category filter
+  const sel=document.getElementById('tx-cat');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">Vse kategorije</option>';
+  Object.entries(CATS).forEach(([k,v])=>{ sel.innerHTML+=`<option value="${k}">${v.icon} ${v.label}</option>`; });
+  sel.value=cur;
+  renderTxList();
+}
+
+function renderTxList() {
+  const search=(document.getElementById('tx-search')?.value||'').toLowerCase();
+  const cf=document.getElementById('tx-cat')?.value||'';
+  const list=txForMonth(selectedMonth).filter(t=>(!search||t.merchant.toLowerCase().includes(search))&&(!cf||t.cat===cf));
+  document.getElementById('tx-list').innerHTML=list.length
+    ? list.map(txRow).join('')
+    : `<div class="empty"><div class="empty-sub">Ni najdenih transakcij</div></div>`;
+}
+
+// ── Budgets ───────────────────────────────────────────────────────────────
+function setupBudgetsPage() {
+  buildMonths('budget-months',()=>{ buildMonths('budget-months',()=>{ renderBars(); renderBudgetChart(); }); renderBars(); renderBudgetChart(); });
+  renderBars();
+  renderBudgetChart();
+}
+
+function renderBars() {
+  const list=txForMonth(selectedMonth).filter(t=>t.type==='debit');
+  const map={};
+  list.forEach(t=>{ map[t.cat]=(map[t.cat]||0)+Math.abs(t.amount); });
+  const cats=Object.entries(CATS).filter(([k])=>k!=='income');
+  document.getElementById('budget-bars').innerHTML=cats.map(([k,v])=>{
+    const spent=map[k]||0, lim=budgets[k]||0;
+    const pct=lim>0?Math.min((spent/lim)*100,100):0;
+    const cls=pct>=100?'bar-over':pct>=80?'bar-warn':'bar-ok';
+    return `<div class="budget-item">
+      <div class="budget-row"><div class="budget-name">${v.icon} ${v.label}</div><div class="budget-nums">€${spent.toFixed(0)} / €${lim||'—'}</div></div>
+      <div class="bar-track"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+  document.getElementById('budget-edit').innerHTML=cats.map(([k,v])=>`
+    <div class="budget-edit-row">
+      <div class="budget-edit-label">${v.icon} ${v.label}</div>
+      <input class="budget-edit-input budget-input" data-cat="${k}" type="number" min="0" value="${budgets[k]||0}">
+    </div>`).join('');
+}
+
+function saveBudgets() {
+  document.querySelectorAll('.budget-input').forEach(inp=>{ budgets[inp.dataset.cat]=parseFloat(inp.value)||0; });
+  saveBudgetStore();
+  renderBars();
+  renderBudgetChart();
+  toast('Proračun shranjen ✓');
+}
+
+function renderBudgetChart() {
+  const list=txForMonth(selectedMonth).filter(t=>t.type==='debit');
+  const map={};
+  list.forEach(t=>{ map[t.cat]=(map[t.cat]||0)+Math.abs(t.amount); });
+  const cats=Object.entries(CATS).filter(([k])=>k!=='income');
+  const labels=cats.map(([,v])=>v.label);
+  const spent=cats.map(([k])=>+(map[k]||0).toFixed(0));
+  const limits=cats.map(([k])=>budgets[k]||0);
+  const ctx=document.getElementById('budgetChart').getContext('2d');
+  if(budgetChart) budgetChart.destroy();
+  budgetChart=new Chart(ctx,{type:'bar',data:{labels,datasets:[
+    {label:'Porabljeno',data:spent,backgroundColor:'#C0392B80',borderColor:'#C0392B',borderWidth:1,borderRadius:4},
+    {label:'Proračun',data:limits,backgroundColor:'#1A7F6440',borderColor:'#1A7F64',borderWidth:1,borderRadius:4}
+  ]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{labels:{font:{size:11},boxWidth:10}}},
+    scales:{x:{beginAtZero:true,ticks:{callback:v=>'€'+v}},y:{ticks:{font:{size:11}}}}}});
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────
+function updateStats() {
+  document.getElementById('s-total').textContent=txs.length;
+  document.getElementById('s-months').textContent=getMonths().length;
+  document.getElementById('s-income').textContent=txs.filter(t=>t.type==='credit').length;
+  document.getElementById('s-expense').textContent=txs.filter(t=>t.type==='debit').length;
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────
+function showPage(id, tabEl) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if(tabEl) tabEl.classList.add('active');
+  document.getElementById('scroll-body').scrollTop=0;
+  if(id==='dashboard') renderDashboard();
+  if(id==='transactions') setupTxPage();
+  if(id==='budgets') setupBudgetsPage();
+  if(id==='import') updateStats();
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+function toast(msg) {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2500);
+}
+
+// ── PWA install prompt ────────────────────────────────────────────────────
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  document.getElementById('install-banner').classList.add('show');
+  document.getElementById('install-banner').onclick=()=>{ e.prompt(); };
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────
+load();
+refreshSelected();
+renderDashboard();
+updateStats();
+</script>
+</body>
+</html>
